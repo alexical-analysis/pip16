@@ -1,4 +1,4 @@
-use crate::vm::Word;
+use crate::vm::vm::Word;
 
 #[derive(PartialEq)]
 pub struct Opcode(u16);

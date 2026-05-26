@@ -1,6 +1,6 @@
-mod inst;
+pub mod cpu;
 mod mmio;
+pub mod ppu;
 mod vm;
 
-pub use inst::*;
 pub use vm::*;

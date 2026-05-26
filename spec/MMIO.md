@@ -62,21 +62,21 @@ Control the 0th backgrounds draw order as well as it's x position
 
 | Bits  | Description                     |
 | ----- | ------------------------------- |
-| 0 - 8 | Signed x-position (-256 - 255)  |
-| 9 - B | Reserved                        |
+| 0 - 9 | Signed x-position (-512 - 511)  |
+| A - B | Reserved                        |
 | C - F | Draw order back(0) to front(16) |
 
 ### Background 0 Control-Y ( 0x00_06 )
 
 Control the 0th backgrounds tile base address as well as it's y position.
-The tile base address is calculated the following forumula.
-Tile Data Base Address + (Base Index * 8k)
+The tile base address is calculated as following:
+Tile Data Base Address + (VRAM base * 8K)
 
 | Bits  | Description                    |
 | ----- | ------------------------------ |
-| 0 - 8 | Signed y-position (-256 - 255) |
+| 0 - 9 | Signed y-position (-512 - 511) |
 | 9 - B | Reserved                       |
-| C - F | VRAM base (0 - 8)              |
+| C - F | VRAM base (0 - 7)              |
 
 ### Background 1 Control-X ( 0x00_07 )
 

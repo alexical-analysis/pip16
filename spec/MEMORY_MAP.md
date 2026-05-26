@@ -26,7 +26,7 @@ At the bottom of the memory space there is 5K of persisten save data that can be
 | ---------------- | ---- | --------- | ------------------- |
 |          0x00_00 | 1K   | 512       | MMIO Registers      |
 |          0x02_00 | 32K  | 16K       | General purpose RAM |
-|          0x42_00 | 5K   | 4.5K      | Save ROM            |
+|          0x42_00 | 5K   | 4.5K      | Save SRAM           |
 |          0x54_00 | 90K  | 45K       | Cart ROM            |
 
 ## Video Memory
@@ -50,6 +50,6 @@ and the CPU begins reading instructions from the Cart Memory.
 |          0x02_00 | 32K  | 16K       | General purpose RAM (mirrored) |
 |          0x42_00 | 12K  | 6K        | Background Tile Data           |
 |          0x5A_00 | 2K   | 1K        | Pallet Data                    |
-|          0x5E_00 | 2K   | 1K        | Sprite Data                    |
+|          0x5E_00 | 2K   | 1K        | Sprite Attribute Data          |
 |          0x62_00 | 64K  | 32K       | Tile Data                      |
 |          0xE2_00 | 15K  | 7.5K      | BIOS (read only)               |

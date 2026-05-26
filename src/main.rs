@@ -1,9 +1,34 @@
 mod vm;
 
-use vm::{EncInst, VM, Word};
+use vm::cpu::EncInst;
+use vm::{VM, Word};
 
-fn main() {
-    let mut vm = VM::new();
+use macroquad::prelude::*;
+
+const WIDTH: u32 = 256;
+const HEIGHT: u32 = 144;
+const SCALE: u32 = 4;
+
+fn window_conf() -> Conf {
+    Conf {
+        window_title: "pip16".to_string(),
+        window_width: (WIDTH * SCALE) as i32,
+        window_height: (HEIGHT * SCALE) as i32,
+        ..Default::default()
+    }
+}
+
+#[macroquad::main(window_conf)]
+async fn main() {
+    // setup the render target
+    let render_target = render_target(WIDTH, HEIGHT);
+    render_target.texture.set_filter(FilterMode::Nearest);
+
+    // set up the 2d camera so that we scale the immage correctly
+    let mut camera = Camera2D::from_display_rect(Rect::new(0.0, 0.0, WIDTH as f32, HEIGHT as f32));
+    camera.render_target = Some(render_target.clone());
+
+    let mut vm = VM::new(&render_target, &camera);
 
     vm.load(&[
         EncInst::new_lw(1, 0, 7).into(),   // 0: r1 = memory[0+7] = count (5)
@@ -17,20 +42,13 @@ fn main() {
         Word::from(-1i16),                 // 8: (neg1): .fill -1
     ]);
 
-    vm.step();
-    print!("(1)\n{}", vm);
-
-    vm.step();
-    print!("(2)\n{}", vm);
-
-    vm.step();
-    print!("(3)\n{}", vm);
-
-    println!("\nrunning vm...\n");
-
-    for _ in 0..50 {
+    let mut i = 0;
+    loop {
+        i += 1;
         vm.step();
+        next_frame().await;
+        if i % 120 == 0 {
+            print!("---{}---\n{}\n", i, vm);
+        }
     }
-
-    print!("{}", vm);
 }
