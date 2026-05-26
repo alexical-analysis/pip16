@@ -1,8 +1,6 @@
 mod vm;
 
-use vm::VM;
-
-use crate::vm::{EncInst, Word};
+use vm::{EncInst, VM, Word};
 
 fn main() {
     let mut vm = VM::new();
