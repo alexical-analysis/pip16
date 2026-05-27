@@ -60,6 +60,15 @@ impl EncInst {
         Word::from((self.0 & IMM_MASK) << 6)
     }
 
+    pub fn new_noop() -> EncInst {
+        DecInst::Add {
+            r_a: 0,
+            r_b: 0,
+            r_c: 0,
+        }
+        .encode()
+    }
+
     pub fn new_add(r_a: u8, r_b: u8, r_c: u8) -> EncInst {
         DecInst::Add { r_a, r_b, r_c }.encode()
     }

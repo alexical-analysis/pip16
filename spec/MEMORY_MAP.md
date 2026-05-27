@@ -24,9 +24,10 @@ At the bottom of the memory space there is 5K of persisten save data that can be
 
 | Starting Address | Size | Addresses | Description         |
 | ---------------- | ---- | --------- | ------------------- |
-|          0x00_00 | 1K   | 512       | MMIO Registers      |
-|          0x02_00 | 32K  | 16K       | General purpose RAM |
-|          0x42_00 | 5K   | 4.5K      | Save SRAM           |
+|          0x00_00 | 1K   | 512       | BIOS                |
+|          0x02_00 | 1K   | 512       | MMIO Registers      |
+|          0x04_00 | 32K  | 16K       | General purpose RAM |
+|          0x44_00 | 4K   | 4K        | Save SRAM           |
 |          0x54_00 | 90K  | 45K       | Cart ROM            |
 
 ## Video Memory

@@ -1,11 +1,8 @@
 use std::fmt::{Display, Formatter, Result};
 
 use crate::vm::cpu::inst::{self, DecInst, EncInst};
-use crate::vm::mmio::{BANK_CONTROL, INTERRUPT_PROGRAM_COUNTER, INTERRUPT_VECTOR};
+use crate::vm::mmio::{INTERRUPT_PROGRAM_COUNTER, INTERRUPT_VECTOR};
 use crate::vm::{MemoryBank, Word};
-
-// The first 32k (16k words) are mirrored between address spaces
-const MAX_MIRROR_ADDRESS: u16 = 16 * 1024;
 
 /// This is represents a RiSC-16 register
 #[derive(Clone, Copy)]
@@ -13,7 +10,7 @@ pub struct Reg(Word);
 
 impl Reg {
     pub fn new() -> Self {
-        Reg(Word::new())
+        Reg(Word::ZERO)
     }
 
     pub fn load(&self) -> Word {
@@ -26,7 +23,7 @@ impl Reg {
 }
 
 pub struct CPU {
-    program_counter: u16,
+    program_counter: Word,
     regs: [Reg; 8],
     interrupt_pending: bool,
     handling_interrupt: bool,
@@ -54,31 +51,25 @@ impl Display for CPU {
     }
 }
 
+pub const CPU_HZ: usize = 15_360_000;
+
 impl CPU {
     pub fn new() -> Self {
         Self {
-            program_counter: 0,
+            program_counter: Word::ZERO,
             regs: [Reg::new(); 8],
             interrupt_pending: false,
             handling_interrupt: false,
         }
     }
 
-    pub fn get_program_counter(&self) -> u16 {
+    pub fn get_program_counter(&self) -> Word {
         self.program_counter
     }
 
-    pub fn step(&mut self, cart_memory: &mut MemoryBank, video_memory: &mut MemoryBank) {
-        // add this in so the compiler knows it can remove the bounds check below. In a release build
-        // this whole if check should get optimized away since it's marked as unreachable
-        if self.program_counter as usize >= cart_memory.len() {
-            unreachable!("this is not possible")
-        }
-
-        // load an instruction for cart_memory the CPU only reads instructions for cart_memory, it does
-        // not respect the bank controll register
-        let inst = cart_memory[self.program_counter as usize];
-        self.program_counter += 1;
+    pub fn step(&mut self, mem: &mut MemoryBank) {
+        let inst = mem.load_word(self.program_counter);
+        self.program_counter = self.program_counter + Word::ONE;
 
         // decode the instruction
         let inst = EncInst::from(inst);
@@ -88,11 +79,11 @@ impl CPU {
         let inst = self.decode(inst);
 
         // execut the instruction
-        self.exec(cart_memory, video_memory, inst);
+        self.exec(mem, inst);
 
         // check for and handle any interrupts
         if self.interrupt_pending {
-            self.handle_interupt(cart_memory);
+            self.handle_interupt(mem);
         }
     }
 
@@ -142,14 +133,14 @@ impl CPU {
                     r_b: inst.reg_b(),
                 }
             }
-            _ => unreachable!("this is not a valid opcode"),
+            _ => unreachable!("not a valid opcode"),
         }
     }
 
     fn load_reg(&self, reg: u8) -> Word {
         // register 0 always contains the value 0 as per the spec
         if reg == 0 {
-            return Word::new();
+            return Word::ZERO;
         }
 
         self.regs[reg as usize].load()
@@ -159,49 +150,7 @@ impl CPU {
         self.regs[reg as usize].store(value);
     }
 
-    fn load_memory(
-        &self,
-        cart_memory: &mut MemoryBank,
-        video_memory: &mut MemoryBank,
-        addr: u16,
-    ) -> Word {
-        // the lower 16k addresses are mirrored between the 2 address spaces. If that's the case we just
-        // read/write from cart memory directly
-        if addr < MAX_MIRROR_ADDRESS {
-            return cart_memory[addr as usize];
-        }
-
-        let space: i16 = cart_memory[BANK_CONTROL].into();
-        if space == 0 {
-            cart_memory[addr as usize]
-        } else {
-            video_memory[addr as usize]
-        }
-    }
-
-    fn store_memory(
-        &mut self,
-        cart_memory: &mut MemoryBank,
-        video_memory: &mut MemoryBank,
-        addr: u16,
-        value: Word,
-    ) {
-        // the lower 16k addresses are mirrored between the 2 address spaces. If that's the case we just
-        // read/write from cart memory directly
-        if addr < MAX_MIRROR_ADDRESS {
-            cart_memory[addr as usize] = value;
-            return;
-        }
-
-        let space: i16 = cart_memory[BANK_CONTROL].into();
-        if space == 0 {
-            cart_memory[addr as usize] = value;
-        } else {
-            video_memory[addr as usize] = value;
-        }
-    }
-
-    fn exec(&mut self, cart_memory: &mut MemoryBank, video_memory: &mut MemoryBank, inst: DecInst) {
+    fn exec(&mut self, mem: &mut MemoryBank, inst: DecInst) {
         match inst {
             DecInst::Add { r_a, r_b, r_c } => {
                 let value = self.load_reg(r_b) + self.load_reg(r_c);
@@ -220,42 +169,41 @@ impl CPU {
             }
             DecInst::Sw { r_a, r_b, imm } => {
                 let addr = self.load_reg(r_b) + imm;
-                let addr: u16 = addr.into();
-
                 let value = self.load_reg(r_a);
-                self.store_memory(cart_memory, video_memory, addr, value);
+                mem.store_word(addr, value);
             }
             DecInst::Lw { r_a, r_b, imm } => {
                 let addr = self.load_reg(r_b) + imm;
-                let addr: u16 = addr.into();
-
-                let value = self.load_memory(cart_memory, video_memory, addr);
+                let value = mem.load_word(addr);
                 self.store_reg(r_a, value);
             }
             DecInst::Beq { r_a, r_b, imm } => {
                 if self.load_reg(r_a) == self.load_reg(r_b) {
-                    self.program_counter = self.program_counter.wrapping_add_signed(imm.into())
+                    let pc: u16 = self.program_counter.into();
+                    let pc = pc.wrapping_add_signed(imm.into());
+                    self.program_counter = Word::from(pc);
                 }
             }
             DecInst::Jalr { r_a, r_b } => {
-                let value = Word::from(self.program_counter as i16);
+                let value = Word::from(self.program_counter);
                 self.store_reg(r_a, value);
                 let reg_value = self.load_reg(r_b);
                 self.program_counter = reg_value.into();
             }
             DecInst::Reti => {
-                let return_addr = cart_memory[INTERRUPT_PROGRAM_COUNTER];
+                let return_addr = mem.load_word(INTERRUPT_PROGRAM_COUNTER);
                 self.program_counter = return_addr.into();
                 self.handling_interrupt = false;
             }
         }
     }
 
-    fn handle_interupt(&mut self, cart_memory: &mut MemoryBank) {
+    fn handle_interupt(&mut self, mem: &mut MemoryBank) {
         self.handling_interrupt = true;
         self.interrupt_pending = false;
 
-        cart_memory[INTERRUPT_PROGRAM_COUNTER] = Word::from(self.program_counter);
+        let pc = Word::from(self.program_counter);
+        mem.store_word(INTERRUPT_PROGRAM_COUNTER, pc);
         self.program_counter = INTERRUPT_VECTOR;
     }
 }

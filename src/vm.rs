@@ -1,5 +1,5 @@
 pub mod cpu;
-mod mmio;
+pub mod mmio;
 pub mod ppu;
 mod vm;
 
