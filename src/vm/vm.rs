@@ -4,7 +4,7 @@ use std::ops::{Add, BitAnd, Not};
 use macroquad::texture::Texture2D;
 
 use crate::vm::cpu::{CPU, CPU_HZ};
-use crate::vm::mmio::{PPU_CONTROL, SPR_ID, SPR_SIZE, SPR_X_POS, SPR_Y_POS};
+use crate::vm::mmio::{HALT_CONTROL, PPU_CONTROL, SPR_ID, SPR_SIZE, SPR_X_POS, SPR_Y_POS};
 use crate::vm::ppu::PPU;
 
 /// A single word in the memory space.
@@ -170,29 +170,33 @@ impl VM {
         self.mem.load(data);
     }
 
-    /// simple function for testing. clears the screen and draws a sprite at 20/30
-    pub fn test(&mut self) {
-        self.mem.store_word(PPU_CONTROL, Word::from(2i16));
-        self.mem.store_word(SPR_X_POS, Word::from(20i16));
-        self.mem.store_word(SPR_Y_POS, Word::from(30i16));
-        self.mem.store_word(SPR_ID, Word::from(0i16));
-        self.mem.store_word(SPR_SIZE, Word::from(0i16));
-    }
-
-    pub fn step(&mut self) {
-        self.cpu.step(&mut self.mem);
-        self.ppu.step(&mut self.mem);
-    }
-
     pub fn step_frame(&mut self) {
         let cycles_per_frame = CPU_HZ / 60;
 
-        for _ in 0..cycles_per_frame {
+        self.mem.store_word(HALT_CONTROL, Word::ZERO);
+
+        for i in 0..cycles_per_frame {
             self.cpu.step(&mut self.mem);
             // TODO: the ppu might take more than 1 cycle if it has drawing work to do so that needs
             // to be acounted for here. We should have the ppu return the "cost of work" and then skip
             // through that many cycles.
             self.ppu.step(&mut self.mem);
+
+            // check if the CPU_HALT register is set
+            let halt = self.mem.load_word(HALT_CONTROL);
+            if halt != Word::ZERO {
+                break;
+            }
+
+            // testing
+            if i > 100 {
+                eprintln!("HALT_CONTROL: {}", halt);
+                eprintln!("SPR_X: {}", self.mem.load_word(SPR_X_POS));
+                eprintln!("SPR_Y: {}", self.mem.load_word(SPR_Y_POS));
+                eprintln!("PPU_CONTROL: {}", self.mem.load_word(PPU_CONTROL));
+                eprintln!("{}", self);
+                panic!("CPU didn't halt")
+            }
         }
     }
 }
