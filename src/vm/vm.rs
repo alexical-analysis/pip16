@@ -5,7 +5,7 @@ use macroquad::texture::Texture2D;
 
 use crate::vm::mmio::HALT_CONTROL;
 use crate::vm::ppu::PPU;
-use crate::vm::risc16::{CPU, CPU_HZ};
+use crate::vm::riscp::CPU;
 
 /// A single word in the memory space.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -169,6 +169,9 @@ impl MemoryBank {
         self.0[addr] = value
     }
 }
+
+/// The clock rate that the vm runs the CPU at
+const CPU_HZ: usize = 15_360_000;
 
 pub struct VM {
     cpu: CPU,

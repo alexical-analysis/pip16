@@ -33,6 +33,12 @@ impl From<Word> for EncodedInst {
     }
 }
 
+impl Into<Word> for EncodedInst {
+    fn into(self) -> Word {
+        Word::from(self.0 as i16)
+    }
+}
+
 impl EncodedInst {
     pub fn is_noop(&self) -> bool {
         self.0 == 0

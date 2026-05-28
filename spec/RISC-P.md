@@ -87,7 +87,7 @@ The final instruction is left as reserved for now. The following options are und
 There are currently a couple pseudo instructions that repurpose otherwise useless instructions.
 
 **NOOP** - The ADD(0,0,0) instruction is treated as a no-op since Register 0 is always 0.
-**RETL** - The JALR(0,0,>0) instruction with a non-zero immediate value is treated as a return from 
+**RETL** - The JALR(0,0,*>0) instruction with a non-zero immediate value is treated as a return from 
   interrupt instruction. It automatically returns the program counter to continue normal work using
   the hidden interrupts register.
 

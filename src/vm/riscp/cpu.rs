@@ -1,3 +1,5 @@
+use std::fmt::{Display, Formatter, Result};
+
 use crate::vm::{
     MemoryBank, Word,
     riscp::{DecodedInst, EncodedInst},
@@ -32,6 +34,35 @@ pub struct CPU {
     regs: [Reg; 16],
     interrupt_pending: bool,
     handling_interrupt: bool,
+}
+
+impl Display for CPU {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+        let mut headers = vec![];
+        let mut values = vec![];
+        for (i, &reg) in self.regs.iter().enumerate() {
+            headers.push(format!("|  Reg_{}  ", i));
+
+            let val: i16 = reg.load().into();
+            let sign = if val < 0 { '-' } else { '+' };
+            let val = format!("| {}0x{:04X} ", sign, val.unsigned_abs());
+            values.push(val);
+        }
+
+        write!(f, "[ CPU ]\n")?;
+        write!(f, "    interrupt pending: {}\n", self.interrupt_pending)?;
+        write!(f, "    handling interrupt: {}\n", self.handling_interrupt)?;
+        write!(
+            f,
+            "    interrupt return: {}\n",
+            self.interrupt_return.load()
+        )?;
+        write!(f, "    PC: {}\n", self.program_counter)?;
+        write!(f, "    {} |\n", headers.join(""))?;
+        write!(f, "    {} |\n\n", values.join(""))?;
+
+        Ok(())
+    }
 }
 
 impl CPU {
