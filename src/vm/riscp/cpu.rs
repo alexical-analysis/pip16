@@ -45,7 +45,7 @@ impl CPU {
         }
     }
 
-    pub fn get_porgram_counter(&self) -> Word {
+    pub fn get_program_counter(&self) -> Word {
         self.program_counter
     }
 
@@ -65,7 +65,7 @@ impl CPU {
 
         // check for and handle any interrupts
         if self.interrupt_pending {
-            self.handle_interupt();
+            self.handle_interrupt();
         }
     }
 
@@ -136,50 +136,29 @@ impl CPU {
                 self.program_counter = reg_value.into();
             }
             DecodedInst::Beq { r_a, r_b, r_c } => {
-                let r_a = self.load_reg(r_a);
-                let r_b = self.load_reg(r_b);
-                if r_a == r_b {
-                    let r_c: i16 = self.load_reg(r_c).into();
-                    let pc: u16 = self.program_counter.into();
-                    let pc = pc.wrapping_add_signed(r_c);
-
-                    self.program_counter = Word::from(pc);
+                if self.load_reg(r_b) == self.load_reg(r_c) {
+                    self.program_counter = self.load_reg(r_a);
                 }
             }
             DecodedInst::Bne { r_a, r_b, r_c } => {
-                let r_a = self.load_reg(r_a);
-                let r_b = self.load_reg(r_b);
-                if r_a != r_b {
-                    let r_c: i16 = self.load_reg(r_c).into();
-                    let pc: u16 = self.program_counter.into();
-                    let pc = pc.wrapping_add_signed(r_c);
-
-                    self.program_counter = Word::from(pc);
+                if self.load_reg(r_b) != self.load_reg(r_c) {
+                    self.program_counter = self.load_reg(r_a);
                 }
             }
             DecodedInst::Blt { r_a, r_b, r_c } => {
-                let r_a = self.load_reg(r_a);
-                let r_b = self.load_reg(r_b);
-                if r_a < r_b {
-                    let r_c: i16 = self.load_reg(r_c).into();
-                    let pc: u16 = self.program_counter.into();
-                    let pc = pc.wrapping_add_signed(r_c);
-
-                    self.program_counter = Word::from(pc);
+                if self.load_reg(r_b) < self.load_reg(r_c) {
+                    self.program_counter = self.load_reg(r_a);
                 }
             }
             DecodedInst::Noop => {}
             DecodedInst::Retl => {
                 self.handling_interrupt = false;
-                self.interrupt_return.store(self.program_counter);
-
-                let addr = self.interrupt_return.load();
-                self.program_counter = addr;
+                self.program_counter = self.interrupt_return.load();
             }
         }
     }
 
-    fn handle_interupt(&mut self) {
+    fn handle_interrupt(&mut self) {
         self.interrupt_pending = false;
         self.handling_interrupt = true;
 

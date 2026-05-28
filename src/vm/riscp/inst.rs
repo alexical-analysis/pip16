@@ -111,7 +111,7 @@ impl EncodedInst {
                 r_a: self.reg_a(),
                 imm: self.wide_imm(),
             },
-            LLI => DecodedInst::Lui {
+            LLI => DecodedInst::Lli {
                 r_a: self.reg_a(),
                 imm: self.wide_imm(),
             },
@@ -126,15 +126,13 @@ impl EncodedInst {
                 imm: self.imm(),
             },
             JALR => {
+                let r_a = self.reg_a();
+                let r_b = self.reg_b();
                 let imm = self.imm();
-                if imm > Word::ZERO {
+                if r_a == 0 && r_b == 0 && imm > Word::ZERO {
                     DecodedInst::Retl
                 } else {
-                    DecodedInst::Jalr {
-                        r_a: self.reg_a(),
-                        r_b: self.reg_b(),
-                        imm,
-                    }
+                    DecodedInst::Jalr { r_a, r_b, imm }
                 }
             }
             BEQ => DecodedInst::Beq {
