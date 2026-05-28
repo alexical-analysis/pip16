@@ -4,23 +4,21 @@ use std::time::{Duration, Instant};
 
 use macroquad::prelude::*;
 
-use vm::cpu::EncInst;
+use vm::mmio::{HALT_CONTROL, PPU_CONTROL, SPR_X_POS, SPR_Y_POS};
+use vm::risc16::EncInst;
 use vm::{VM, Word};
-
-use crate::vm::cpu::CPU_HZ;
-use crate::vm::mmio::{HALT_CONTROL, PPU_CONTROL, SPR_X_POS, SPR_Y_POS};
 
 const TARGET_FRAME_TIME: Duration = Duration::from_micros(16_667); // ~60fps
 
-const WIDTH: u32 = 256;
-const HEIGHT: u32 = 144;
-const SCALE: u32 = 4;
+const SCREEN_WIDTH: u32 = 256;
+const SCREEN_HEIGHT: u32 = 144;
+const SCREEN_SCALE: u32 = 4;
 
 fn window_conf() -> Conf {
     Conf {
         window_title: "pip16".to_string(),
-        window_width: (WIDTH * SCALE) as i32,
-        window_height: (HEIGHT * SCALE) as i32,
+        window_width: (SCREEN_WIDTH * SCREEN_SCALE) as i32,
+        window_height: (SCREEN_HEIGHT * SCREEN_SCALE) as i32,
         ..Default::default()
     }
 }
@@ -28,11 +26,16 @@ fn window_conf() -> Conf {
 #[macroquad::main(window_conf)]
 async fn main() {
     // setup the render target
-    let render_target = render_target(WIDTH, HEIGHT);
+    let render_target = render_target(SCREEN_WIDTH, SCREEN_HEIGHT);
     render_target.texture.set_filter(FilterMode::Nearest);
 
     // set up the 2d camera so that we scale the immage correctly
-    let mut camera = Camera2D::from_display_rect(Rect::new(0.0, 0.0, WIDTH as f32, HEIGHT as f32));
+    let mut camera = Camera2D::from_display_rect(Rect::new(
+        0.0,
+        0.0,
+        SCREEN_WIDTH as f32,
+        SCREEN_HEIGHT as f32,
+    ));
     camera.render_target = Some(render_target.clone());
 
     // snag the sprite sheet
@@ -68,8 +71,6 @@ async fn main() {
         // lock the maximum frame rate for that juci retro feel
         let elapsed = frame_start.elapsed();
         if elapsed < TARGET_FRAME_TIME {
-            let sleep_until = frame_start + TARGET_FRAME_TIME;
-
             // sleep is not precise and so we need to sleep slightly less than the remaining time
             let sleep_time = TARGET_FRAME_TIME - elapsed;
             if sleep_time > Duration::from_millis(2) {
@@ -77,6 +78,7 @@ async fn main() {
             }
 
             // then we just spin the CPU for the last few milllis since that's much more accurate
+            let sleep_until = frame_start + TARGET_FRAME_TIME;
             while Instant::now() < sleep_until {}
         }
     }

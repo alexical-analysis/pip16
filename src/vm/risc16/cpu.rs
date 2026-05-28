@@ -1,7 +1,7 @@
 use std::fmt::{Display, Formatter, Result};
 
-use crate::vm::cpu::inst::{self, DecInst, EncInst};
 use crate::vm::mmio::{INTERRUPT_PROGRAM_COUNTER, INTERRUPT_VECTOR};
+use crate::vm::risc16::inst::{self, DecInst, EncInst};
 use crate::vm::{MemoryBank, Word};
 
 /// This is represents a RiSC-16 register

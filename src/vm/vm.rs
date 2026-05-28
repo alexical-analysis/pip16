@@ -1,22 +1,22 @@
 use std::fmt::{Display, Result};
-use std::ops::{Add, BitAnd, Not};
+use std::ops::{Add, BitAnd, BitOr, BitXor, Mul, Not, Shl, Shr, Sub};
 
 use macroquad::texture::Texture2D;
 
-use crate::vm::cpu::{CPU, CPU_HZ};
-use crate::vm::mmio::{HALT_CONTROL, PPU_CONTROL, SPR_ID, SPR_SIZE, SPR_X_POS, SPR_Y_POS};
+use crate::vm::mmio::HALT_CONTROL;
 use crate::vm::ppu::PPU;
+use crate::vm::risc16::{CPU, CPU_HZ};
 
 /// A single word in the memory space.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Word(i16);
+pub struct Word(u16);
 
 impl Word {
     pub const ZERO: Self = Self(0);
     pub const ONE: Self = Self(1);
 
     pub const fn new_const(value: i32) -> Self {
-        Self(value as i16)
+        Self(value as u16)
     }
 }
 
@@ -28,25 +28,25 @@ impl Display for Word {
 
 impl From<i16> for Word {
     fn from(value: i16) -> Self {
-        Word(value)
+        Word(value as u16)
     }
 }
 
 impl Into<i16> for Word {
     fn into(self) -> i16 {
-        self.0
+        self.0 as i16
     }
 }
 
 impl From<u16> for Word {
     fn from(value: u16) -> Self {
-        Word(value as i16)
+        Word(value)
     }
 }
 
 impl Into<u16> for Word {
     fn into(self) -> u16 {
-        self.0 as u16
+        self.0
     }
 }
 
@@ -61,6 +61,54 @@ impl Add for Word {
 
     fn add(self, rhs: Self) -> Self {
         Self(self.0.wrapping_add(rhs.0))
+    }
+}
+
+impl Sub for Word {
+    type Output = Self;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        Self(self.0.wrapping_sub(rhs.0))
+    }
+}
+
+impl Mul for Word {
+    type Output = Self;
+
+    fn mul(self, rhs: Self) -> Self::Output {
+        Self(self.0.wrapping_mul(rhs.0))
+    }
+}
+
+impl BitXor for Word {
+    type Output = Self;
+
+    fn bitxor(self, rhs: Self) -> Self::Output {
+        Self(self.0 ^ rhs.0)
+    }
+}
+
+impl Shl for Word {
+    type Output = Self;
+
+    fn shl(self, rhs: Self) -> Self::Output {
+        Self(self.0 << rhs.0)
+    }
+}
+
+impl Shr for Word {
+    type Output = Self;
+
+    fn shr(self, rhs: Self) -> Self::Output {
+        Self(self.0 >> rhs.0)
+    }
+}
+
+impl BitOr for Word {
+    type Output = Self;
+
+    fn bitor(self, rhs: Self) -> Self::Output {
+        Self(self.0 | rhs.0)
     }
 }
 
@@ -82,7 +130,7 @@ impl Not for Word {
 
 impl From<i8> for Word {
     fn from(value: i8) -> Self {
-        Self(value as i16)
+        Self(value as u16)
     }
 }
 
@@ -186,16 +234,6 @@ impl VM {
             let halt = self.mem.load_word(HALT_CONTROL);
             if halt != Word::ZERO {
                 break;
-            }
-
-            // testing
-            if i > 100 {
-                eprintln!("HALT_CONTROL: {}", halt);
-                eprintln!("SPR_X: {}", self.mem.load_word(SPR_X_POS));
-                eprintln!("SPR_Y: {}", self.mem.load_word(SPR_Y_POS));
-                eprintln!("PPU_CONTROL: {}", self.mem.load_word(PPU_CONTROL));
-                eprintln!("{}", self);
-                panic!("CPU didn't halt")
             }
         }
     }
