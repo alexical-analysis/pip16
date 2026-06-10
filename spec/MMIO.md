@@ -1,103 +1,261 @@
 # MMIO Registers
 
-The MMIO Registers are how the CPU and the hardware interact to drive the pip16.
-All registers are 16-bit values and the bits are named 0 - F.
+The MMIO block occupies addresses 0xFFC0 – 0xFFFF (64 word addresses = 128 bytes)
+in all three memory banks. All registers are 16-bit. Unassigned bit fields are
+reserved and should be written as 0; reads may return 0 or undefined values.
+
+Registers marked **read-only** ignore writes.
+Registers marked **BIOS-only** always read as 0x0000 in user mode and can only
+be written by BIOS code.
+
+---
 
 ## System Registers
 
-### System Control ( 0x00_00 )
+### System Control — 0xFFC0 (BIOS-only)
 
-Internal BIOS use only, can not be written to and will always return 0x00_00 when read from user space.
+Internal BIOS use. Reads as 0x0000 from user mode; writes are ignored.
 
-### Bank Control ( 0x00_01 )
+### Bank Control — 0xFFC1
 
-Controlls the active memory bank.
-0 = Cartridge memory.
-1 = Video memory.
+Selects the active memory bank for SW and LW instructions.
+Does not affect instruction fetches; the program counter always reads from the
+Default bank.
 
-| Bits  | Description                | 
-| ----- | -------------------------- |
-|     0 | Swap the active bank       |
-| 1 - F | reserved                   |
+| Bits  | Description                                 |
+| ----- | ------------------------------------------- |
+| 0 – 1 | Active bank (0 = Default, 1 = PPU, 2 = APU) |
+| 2 – F | Reserved                                    |
+
+### Interrupt Enable — 0xFFC2
+
+Enables individual interrupt sources. When a bit is set and the corresponding
+event occurs, the CPU is interrupted and execution jumps to the interrupt handler.
+
+| Bit | Interrupt Source                         |
+| --- | ---------------------------------------- |
+| 0   | VBlank (display finished one full frame) |
+| 1   | HBlank (display finished one scan line)  |
+| 2   | PPU Done (sprite draw complete)          |
+| 3   | APU Done (APU operation complete)        |
+| 4   | Button press (any button state change)   |
+| 5–F | Reserved                                 |
+
+### Interrupt Status — 0xFFC3
+
+Each bit is set by hardware when the corresponding interrupt fires.
+Write 1 to a bit to acknowledge and clear it.
+Read to determine which interrupts are pending.
+
+Bit layout matches Interrupt Enable (0xFFC2).
+
+---
 
 ## Display Registers
 
-Display registers are used to controll the behavior of the system display.
+### Display Control — 0xFFC4
 
-### Display Control ( 0x00_02 )
+Controls global display state.
 
-This controls the general display status including interupts and turning the display on and off
+| Bits  | Description             |
+| ----- | ----------------------- |
+| 0     | Display enable (1 = on) |
+| 1 – F | Reserved                |
 
-| Bits  | Description                | 
-| ----- | -------------------------- |
-|     0 | enable/disable the display |
-| 1 - F | reserved                   |
+### Display VCount — 0xFFC5 (read-only)
 
-### Display VCount ( 0x00_03 )
+Current scan line being rendered by the PPU.
+Counts 0 – 159 during active display and continues through the VBlank period.
 
-Tracks the current scan line being rendered by the PPU
+| Bits  | Description       |
+| ----- | ----------------- |
+| 0 – 7 | Current scan line |
+| 8 – F | Reserved          |
 
-| Bits  | Description | 
-| ----- | ----------- |
-| 0 - F | scan line   |
+---
 
-## Background Registers
+## Sprite Registers
 
-Background registers control and configure the 4 background layers
+These registers control the single-sprite draw operation.
+To draw a sprite: write the position, tile, and attribute registers, then write 1
+to Sprite Control. The CPU tick counter advances by the fixed PPU cycle cost on
+activation. See HARDWARE.md for the cost values.
 
-### Background Control ( 0x00_04 )
-
-This register can be used to enable and disable the various backgrounds
-
-| Bits  | Description                 |
-| ----- | --------------------------- |
-|     0 | enable/disable background 0 |
-|     1 | enable/disable background 1 |
-|     2 | enable/disable background 2 |
-|     3 | enable/disable background 3 |
-
-### Background 0 Control-X ( 0x00_05 )
-
-Control the 0th backgrounds draw order as well as it's x position
-
-| Bits  | Description                     |
-| ----- | ------------------------------- |
-| 0 - 9 | Signed x-position (-512 - 511)  |
-| A - B | Reserved                        |
-| C - F | Draw order back(0) to front(16) |
-
-### Background 0 Control-Y ( 0x00_06 )
-
-Control the 0th backgrounds tile base address as well as it's y position.
-The tile base address is calculated as following:
-Tile Data Base Address + (VRAM base * 8K)
+### Sprite X — 0xFFC6
 
 | Bits  | Description                    |
 | ----- | ------------------------------ |
-| 0 - 9 | Signed y-position (-512 - 511) |
-| 9 - B | Reserved                       |
-| C - F | VRAM base (0 - 7)              |
+| 0 – F | Signed X position (–128 – 127) |
 
-### Background 1 Control-X ( 0x00_07 )
+### Sprite Y — 0xFFC7
 
-Same as the above Control-X register but for background 1
+| Bits  | Description                    |
+| ----- | ------------------------------ |
+| 0 – F | Signed Y position (–128 – 127) |
 
-### Background 1 Control-Y ( 0x00_08 )
+### Sprite Tile — 0xFFC8
 
-Same as the above Control-Y register but for background 1
+| Bits  | Description                         |
+| ----- | ----------------------------------- |
+| 0 – 8 | Tile index within tile bank (0–511) |
+| 9 – F | Reserved                            |
 
-### Background 2 Control-X ( 0x00_09 )
+### Sprite Attributes — 0xFFC9
 
-Same as the above Control-X register but for background 2
+| Bits  | Description                              |
+| ----- | ---------------------------------------- |
+| 0 – 1 | Size (0=8×8, 1=16×16, 2=32×32, 3=64×64) |
+| 2     | Horizontal flip                          |
+| 3     | Vertical flip                            |
+| 4 – 7 | Tile data bank (0–11)                    |
+| 8 – 9 | Rotation (0=0°, 1=90°, 2=180°, 3=270°)  |
+| A – F | Reserved                                 |
 
-### Background 2 Control-Y ( 0x00_0A )
+### Sprite Control — 0xFFCA
 
-Same as the above Control-Y register but for background 2
+Write 1 to trigger a sprite draw using the values in the sprite registers above.
+The PPU Done interrupt fires when the draw is complete.
+Write 0 has no effect.
 
-### Background 3 Control-X ( 0x00_0B )
+| Bits  | Description            |
+| ----- | ---------------------- |
+| 0     | Trigger draw (write 1) |
+| 1 – F | Reserved               |
 
-Same as the above Control-X register but for background 3
+---
 
-### Background 3 Control-Y ( 0x00_0C )
+## Background Registers
 
-Same as the above Control-Y register but for background 3
+Scroll values wrap at the 32×32 tile map boundary (256 pixels).
+
+### Background Scroll-X — 0xFFCB
+
+| Bits  | Description               |
+| ----- | ------------------------- |
+| 0 – 7 | Horizontal scroll (0–255) |
+| 8 – F | Reserved                  |
+
+### Background Scroll-Y — 0xFFCC
+
+| Bits  | Description             |
+| ----- | ----------------------- |
+| 0 – 7 | Vertical scroll (0–255) |
+| 8 – F | Reserved                |
+
+### Background Control — 0xFFCD
+
+| Bits  | Description                            |
+| ----- | -------------------------------------- |
+| 0     | Enable                                 |
+| 1 – 4 | Tile data bank (0–11, selects 8K bank) |
+| 5 – F | Reserved                               |
+
+---
+
+## Input Registers
+
+### Button State — 0xFFCE (read-only)
+
+Each bit reflects the current state of a button (1 = pressed).
+
+| Bit | Button        |
+| --- | ------------- |
+| 0   | D-pad Up      |
+| 1   | D-pad Down    |
+| 2   | D-pad Left    |
+| 3   | D-pad Right   |
+| 4   | A button      |
+| 5   | B button      |
+| 6   | L shoulder    |
+| 7   | R shoulder    |
+| 8   | System button |
+| 9–F | Reserved      |
+
+---
+
+## APU Registers
+
+The APU has 4 channels. Each channel has a frequency register and a control register.
+Activating the APU via APU Control advances the CPU tick counter by a fixed hardware
+cost analogously to the PPU timing model. See HARDWARE.md for the fixed tick values.
+
+### APU Control — 0xFFCF
+
+| Bits  | Description                         |
+| ----- | ----------------------------------- |
+| 0     | APU enable (1 = on)                 |
+| 1     | Trigger playback (write 1 to start) |
+| 2 – F | Reserved                            |
+
+### APU Channel 0 Frequency — 0xFFD0
+
+Square wave channel. Frequency is specified as a 16-bit divisor applied to the
+APU base clock. Lower values produce higher frequencies.
+
+| Bits  | Description       |
+| ----- | ----------------- |
+| 0 – F | Frequency divisor |
+
+### APU Channel 0 Control — 0xFFD1
+
+| Bits  | Description                                   |
+| ----- | --------------------------------------------- |
+| 0 – 3 | Volume (0–15)                                 |
+| 4 – 5 | Duty cycle (0=12.5%, 1=25%, 2=50%, 3=75%)    |
+| 6     | Loop (1 = loop playback)                      |
+| 7     | Channel enable                                |
+| 8 – F | Reserved                                      |
+
+### APU Channel 1 Frequency — 0xFFD2
+
+Triangle wave channel. Same frequency divisor format as channel 0.
+
+### APU Channel 1 Control — 0xFFD3
+
+| Bits  | Description    |
+| ----- | -------------- |
+| 0 – 3 | Volume (0–15)  |
+| 4     | Loop           |
+| 5     | Channel enable |
+| 6 – F | Reserved       |
+
+### APU Channel 2 Frequency — 0xFFD4
+
+Custom waveform channel. Frequency at which the waveform address pointer advances.
+
+### APU Channel 2 Control — 0xFFD5
+
+| Bits  | Description    |
+| ----- | -------------- |
+| 0 – 3 | Volume (0–15)  |
+| 4     | Loop           |
+| 5     | Channel enable |
+| 6 – F | Reserved       |
+
+### APU Channel 2 Waveform Address — 0xFFD6
+
+Start address of the waveform data in APU bank memory (word address).
+
+### APU Channel 2 Waveform Length — 0xFFD7
+
+Length of the waveform in words.
+
+### APU Channel 3 Frequency — 0xFFD8
+
+Noise channel. Controls the rate of the pseudo-random noise generator.
+
+### APU Channel 3 Control — 0xFFD9
+
+| Bits  | Description                        |
+| ----- | ---------------------------------- |
+| 0 – 3 | Volume (0–15)                      |
+| 4     | Short mode (1 = 31-step, 0 = long) |
+| 5     | Loop                               |
+| 6     | Channel enable                     |
+| 7 – F | Reserved                           |
+
+---
+
+## Reserved
+
+0xFFDA – 0xFFFF are reserved for future expansion.
