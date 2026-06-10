@@ -95,3 +95,19 @@ There are other essentially useless instructions that could also be repurposed b
 
 SHL(\*,\*,0) - Reserved
 SHR(\*,\*,0) - Reserved
+
+## Extensions
+
+The current instruction set only supports a 16-bit address space. 
+This is because the SW and LW instructions rely on a 16-bit register to provide the store/load address.
+This can actually be modified in a couple ways to increase the address space.
+The first is to conver those instructions into RRR instructions.
+Reg B and Reg C become a unified 32-bit address thereby increasing the addressable space to 4GB.
+
+Another option is to maintain the RRI format and to treat the immediate like a memory bank.
+This increase the effectife addressable space to a 20-bit address space with 1MB of addresses.
+Both options have analougs in the 16-bit era of computing and can significantly increase the flexibility 
+of the CPU.
+
+A thrid option is to allow for joining registers to create 32-bit registers specically for pointers.
+This would allow the instructions to maintain the RRI format while also supprint a 32-bit address space.
