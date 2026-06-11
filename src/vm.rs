@@ -1,3 +1,4 @@
+pub mod apu;
 pub mod mmio;
 pub mod ppu;
 pub mod riscp;

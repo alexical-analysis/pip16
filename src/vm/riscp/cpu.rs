@@ -1,11 +1,10 @@
 use std::fmt::{Display, Formatter, Result};
 
 use crate::vm::{
-    MemoryBank, Word,
+    BankedMemory, Word,
     riscp::{DecodedInst, EncodedInst},
 };
 
-/// This is represents a RiSC-P register
 #[derive(Clone, Copy)]
 pub struct Reg(Word);
 
@@ -23,10 +22,13 @@ impl Reg {
     }
 }
 
-/// This is where the CPU jumps to when it needs to handle an interrupt. It's FF_FC because the minimum
-/// number of instructions needed to jump to an arbitrary address where handler code is located is 3.
-/// LUI+LLI to set up the address vector and JALR to jump to that address
-pub const INTERRUPT_VECTOR: Word = Word::new_const(0xFF_FC);
+/// The CPU jumps here when an interrupt fires. The last 3 words of Cart ROM
+/// (0xB7BD–0xB7BF) hold a 3-instruction dispatch sequence:
+///   LUI rX, <high byte of handler>
+///   LLI rX, <low byte of handler>
+///   JALR r0, rX
+/// The actual handler ends with RETL to resume interrupted code.
+pub const INTERRUPT_VECTOR: Word = Word::new_const(0xB7BD);
 
 pub struct CPU {
     program_counter: Word,
@@ -42,7 +44,6 @@ impl Display for CPU {
         let mut values = vec![];
         for (i, &reg) in self.regs.iter().enumerate() {
             headers.push(format!("|  Reg_{}  ", i));
-
             let val: i16 = reg.load().into();
             let sign = if val < 0 { '-' } else { '+' };
             let val = format!("| {}0x{:04X} ", sign, val.unsigned_abs());
@@ -52,11 +53,7 @@ impl Display for CPU {
         write!(f, "[ CPU ]\n")?;
         write!(f, "    interrupt pending: {}\n", self.interrupt_pending)?;
         write!(f, "    handling interrupt: {}\n", self.handling_interrupt)?;
-        write!(
-            f,
-            "    interrupt return: {}\n",
-            self.interrupt_return.load()
-        )?;
+        write!(f, "    interrupt return: {}\n", self.interrupt_return.load())?;
         write!(f, "    PC: {}\n", self.program_counter)?;
         write!(f, "    {} |\n", headers.join(""))?;
         write!(f, "    {} |\n\n", values.join(""))?;
@@ -80,32 +77,35 @@ impl CPU {
         self.program_counter
     }
 
-    pub fn step(&mut self, mem: &mut MemoryBank) {
-        let inst = mem.load_word(self.program_counter);
+    /// Signals an interrupt to the CPU. Ignored if already handling one.
+    pub fn trigger_interrupt(&mut self) {
+        if !self.handling_interrupt {
+            self.interrupt_pending = true;
+        }
+    }
+
+    pub fn step(&mut self, mem: &mut BankedMemory) {
+        // Instruction fetch always reads from the default bank.
+        let inst = mem.fetch(self.program_counter);
         self.program_counter = self.program_counter + Word::ONE;
 
-        // decode the instruction
         let inst = EncodedInst::from(inst);
         if inst.is_noop() {
             return;
         }
         let inst = inst.decode();
 
-        // execut the instruction
         self.exec(mem, inst);
 
-        // check for and handle any interrupts
         if self.interrupt_pending {
             self.handle_interrupt();
         }
     }
 
     fn load_reg(&self, reg: u8) -> Word {
-        // register 0 always contains the value 0 as per the spec
         if reg == 0 {
             return Word::ZERO;
         }
-
         self.regs[reg as usize].load()
     }
 
@@ -113,7 +113,7 @@ impl CPU {
         self.regs[reg as usize].store(value);
     }
 
-    fn exec(&mut self, mem: &mut MemoryBank, inst: DecodedInst) {
+    fn exec(&mut self, mem: &mut BankedMemory, inst: DecodedInst) {
         match inst {
             DecodedInst::Add { r_a, r_b, r_c } => {
                 let value = self.load_reg(r_b) + self.load_reg(r_c);
@@ -153,16 +153,15 @@ impl CPU {
             DecodedInst::Sw { r_a, r_b, imm } => {
                 let addr = self.load_reg(r_b) + imm;
                 let value = self.load_reg(r_a);
-                mem.store_word(addr, value);
+                mem.store(addr, value);
             }
             DecodedInst::Lw { r_a, r_b, imm } => {
                 let addr = self.load_reg(r_b) + imm;
-                let value = mem.load_word(addr);
+                let value = mem.load(addr);
                 self.store_reg(r_a, value);
             }
             DecodedInst::Jalr { r_a, r_b, .. } => {
                 self.store_reg(r_a, self.program_counter);
-
                 let reg_value = self.load_reg(r_b);
                 self.program_counter = reg_value.into();
             }
@@ -192,7 +191,6 @@ impl CPU {
     fn handle_interrupt(&mut self) {
         self.interrupt_pending = false;
         self.handling_interrupt = true;
-
         self.interrupt_return.store(self.program_counter);
         self.program_counter = INTERRUPT_VECTOR;
     }

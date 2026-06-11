@@ -10,8 +10,8 @@ use crate::vm::riscp::test_gfx_prgm;
 
 const TARGET_FRAME_TIME: Duration = Duration::from_micros(16_667); // ~60fps
 
-const SCREEN_WIDTH: u32 = 256;
-const SCREEN_HEIGHT: u32 = 144;
+const SCREEN_WIDTH: u32 = 160;
+const SCREEN_HEIGHT: u32 = 160;
 const SCREEN_SCALE: u32 = 4;
 
 fn window_conf() -> Conf {
